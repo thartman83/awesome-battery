@@ -79,6 +79,10 @@ end
 
 -- }}}
 
+--- Battery Status Enum -- {{{
+local BatteryState = { Discharging = 1, Charging = 2, Unknown = 3 }
+-- }}}
+
 --- Constructor -- {{{
 local bat = setmetatable({}, { __call = function(_, ...) return new(...) end })
 bat.__index = bat
@@ -89,13 +93,27 @@ local function new(args)
    gtable.crush(obj, bat, true)
    
    -- Initialize members
-   local args            = args or {}
-   obj._batname          = args.batname or "BAT"
-   obj._batPropPath      = args.batPropPath or "/sys/class/power_supply/" ..
+   local args       = args or {}
+   obj._batname     = args.batname or "BAT"
+   obj._batPropPath = args.batPropPath or "/sys/class/power_supply/" ..
                                                obj._batname .. "/uevent"
-   obj._timeout          = args.timeout or 15
-   obj._props            = {}
-   obj._timer            = capi.timer({timeout=obj._timeout})
+   obj._timeout     = args.timeout or 15
+   obj._timer       = capi.timer({timeout=obj._timeout})
+   obj._props       = {}
+   obj._pl          = pango.Layout.new(pangocairo.font_map_get_default():create_context())
+   obj._initialized = false
+   obj._fontFamily  = args.fontFamily or "Verdana"
+   obj._fontWeight  = args.fontWeight or pango.Weight.ULTRABOLD
+
+   -- Setup the widget's font
+   local font       = pango.FontDescription()
+   font:set_family(obj._fontFamily)
+   font:set_weight(obj._fontWeight)
+   obj._pl:set_font_description(font)
+
+   -- Calculate text width
+   obj._pl.text     = " 000%"
+   obj._textWidth   = pl:get_pixel_extents().width
    
    -- Setup the update timer
    obj._timer.connect_signal("timeout", function() obj:update() end)
@@ -112,6 +130,56 @@ function bat.mt.__call(_, ...)
 end
 --- }}}
 
+--- bat:isInitialized -- {{{
+-- Check that the power supply properties table exists and that the
+-- fields we are interested exist in the property table
+function bat:isInitialized ()
+   return obj._props and
+          obj._props.POWER_SUPPLY_STATUS and
+          obj._props.POWER_SUPPLY_CHARGE_NOW and      
+          obj._props.POWER_SUPPLY_CHARGE_FULL and
+          true
+end
+-- }}}
+
+--- bat:getStatus -- {{{
+-- Return the current status of the battery as a value from the
+-- BatteryState enum table.
+function bat:getStatus ()
+   local retval = BatteryState.Unknown
+
+   if not bat:isInitialized() then
+      return retval
+   end
+   
+   if self._props.POWER_SUPPLY_STATUS == "Discharging" then
+      retval = BatteryState.Discharging
+   elseif self._prop.POWER_SUPPLY_STATUS == "Charging" then
+      retval = BatteryState.Charging      
+   end
+
+   return retval
+end
+-- }}}
+
+--- bat:getChargeAsPerc -- {{{
+-- 
+function bat:getChargeAsPerc ()
+   local retval = 0
+
+   -- Make sure that the properties table has been filled in and that
+   --  we don't accidentally divide by 0
+   if bat:isInitialized() and self._prop.POWER_SUPPLY_CHARGE_FULL ~= 0 then
+      retval = self._prop.POWER_SUPPLY_CHARGE_NOW /
+               self._prop.POWER_SUPPLY_CHARgE_FULL
+   end
+
+   -- finally check that the charge percentage isn't greater than 100
+   -- if it is return 100
+   return retval > 100 and 100 or retval
+end
+-- }}}
+
 --- update -- {{{
 -- Update battery information
 function bat:update ()
@@ -122,19 +190,55 @@ function bat:update ()
         for _,v in ipairs(lines(stdout)) do
            gtable.merge(self._props, split(v,'='))
         end
-        
+
+        self._initialized = true
         self:emit_signal("widget::updated")
    end)
 end
 -- }}}
 
+function bat:fit(ctx, width, height)
+   return (width > (height * 2) and (height * 2) or width) + self._textWidth, height
+end
+
 --- draw -- {{{
 -- 
 function bat:draw (w, cr, width, height)
    cr:save()   
-   
+
+   if self:getStatus() == BatteryState.Discharging then
+      bat:drawBattery(w, cr, width, height)
+   else
+      bat:drawPlug(w, cr, width, height)
+   end
+
+
+   bat:drawText(w, cr, width, height)
    
    cr:restore()
+end
+-- }}}
+
+--- bat:drawText -- {{{
+-- 
+function bat:drawText (w, cr, width, height)
+   self.pl.text = " " .. self.getChargeAsPerc() .. "%"
+   cr:translate(width - self.textWidth, 0)
+   cr:show_layout(pl)
+end
+-- }}}
+
+--- bat:drawBattery -- {{{
+-- 
+function bat:drawBattery (w, cr, width, height)
+
+end
+-- }}}
+
+--- bat:drawPlug -- {{{
+-- 
+function bat:drawPlug (w, cr, width, height)
+
 end
 -- }}}
 
