@@ -28,7 +28,7 @@ local gtable       = require('gears.table' )
 local awful        = require('awful'       )
 local cairo        = require('lgi'         )
 local pango        = require('lgi'         ).Pango
-local pangocairo   = require('lgi'         ).Pango.Cairo
+local pangocairo   = require('lgi'         ).PangoCairo
 local capi         = {timer = timer}
 -- }}}
 
@@ -83,52 +83,8 @@ end
 local BatteryState = { Discharging = 1, Charging = 2, Unknown = 3 }
 -- }}}
 
---- Constructor -- {{{
-local bat = setmetatable({}, { __call = function(_, ...) return new(...) end })
+local bat = {}
 bat.__index = bat
-
-local function new(args)
-   -- Create the widget and add methods to the metatable
-   local obj             = wibox.widget.base.empty_widget()
-   gtable.crush(obj, bat, true)
-   
-   -- Initialize members
-   local args       = args or {}
-   obj._batname     = args.batname or "BAT"
-   obj._batPropPath = args.batPropPath or "/sys/class/power_supply/" ..
-                                               obj._batname .. "/uevent"
-   obj._timeout     = args.timeout or 15
-   obj._timer       = capi.timer({timeout=obj._timeout})
-   obj._props       = {}
-   obj._pl          = pango.Layout.new(pangocairo.font_map_get_default():create_context())
-   obj._initialized = false
-   obj._fontFamily  = args.fontFamily or "Verdana"
-   obj._fontWeight  = args.fontWeight or pango.Weight.ULTRABOLD
-
-   -- Setup the widget's font
-   local font       = pango.FontDescription()
-   font:set_family(obj._fontFamily)
-   font:set_weight(obj._fontWeight)
-   obj._pl:set_font_description(font)
-
-   -- Calculate text width
-   obj._pl.text     = " 000%"
-   obj._textWidth   = pl:get_pixel_extents().width
-   
-   -- Setup the update timer
-   obj._timer.connect_signal("timeout", function() obj:update() end)
-   obj._timer:start()
-
-   -- Initialize the properties
-   obj:update()
-   
-   return obj
-end
-
-function bat.mt.__call(_, ...)
-   return new(...)
-end
---- }}}
 
 --- bat:isInitialized -- {{{
 -- Check that the power supply properties table exists and that the
@@ -180,7 +136,7 @@ function bat:getChargeAsPerc ()
 end
 -- }}}
 
---- update -- {{{
+--- bat:update -- {{{
 -- Update battery information
 function bat:update ()
    awful.spawn.easy_async("cat " .. self._batPropPath,
@@ -197,11 +153,13 @@ function bat:update ()
 end
 -- }}}
 
+--- bat:fit -- {{{
 function bat:fit(ctx, width, height)
    return (width > (height * 2) and (height * 2) or width) + self._textWidth, height
 end
+-- }}}
 
---- draw -- {{{
+--- bat:draw -- {{{
 -- 
 function bat:draw (w, cr, width, height)
    cr:save()   
@@ -242,5 +200,46 @@ function bat:drawPlug (w, cr, width, height)
 end
 -- }}}
 
-return bat
+--- Constructor -- {{{
+local function new(args)
+   -- Create the widget and add methods to the metatable
+   local obj             = wibox.widget.base.empty_widget()
+   print(bat == nil)
+   gtable.crush(obj, bat, true)
+   
+   -- Initialize members
+   local args       = args or {}
+   obj._batname     = args.batname or "BAT"
+   obj._batPropPath = args.batPropPath or "/sys/class/power_supply/" ..
+                                               obj._batname .. "/uevent"
+   obj._timeout     = args.timeout or 15
+   obj._timer       = capi.timer({timeout=obj._timeout})
+   obj._props       = {}
+   obj._pl          = pango.Layout.new(pangocairo.font_map_get_default():create_context())
+   obj._initialized = false
+   obj._fontFamily  = args.fontFamily or "Verdana"
+   obj._fontWeight  = args.fontWeight or pango.Weight.ULTRABOLD
+
+   -- Setup the widget's font
+   local font       = pango.FontDescription()
+   font:set_family(obj._fontFamily)
+   font:set_weight(obj._fontWeight)
+   obj._pl:set_font_description(font)
+
+   -- Calculate text width
+   obj._pl.text     = " 000%"
+   obj._textWidth   = obj._pl:get_pixel_extents().width
+   
+   -- Setup the update timer
+   obj._timer.connect_signal("timeout", function() obj:update() end)
+   obj._timer:start()
+
+   -- Initialize the properties
+   obj:update()
+   
+   return obj
+end
+--- }}}
+
+return setmetatable(bat, { __call = function(_, ...) return new(...) end })
 -- }}}
