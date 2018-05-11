@@ -84,16 +84,16 @@ local BatteryState = { Discharging = 1, Charging = 2, Unknown = 3 }
 -- }}}
 
 local bat = {}
-bat.__index = bat
+--bat.__index = bat
 
 --- bat:isInitialized -- {{{
 -- Check that the power supply properties table exists and that the
 -- fields we are interested exist in the property table
 function bat:isInitialized ()
-   return obj._props and
-          obj._props.POWER_SUPPLY_STATUS and
-          obj._props.POWER_SUPPLY_CHARGE_NOW and      
-          obj._props.POWER_SUPPLY_CHARGE_FULL and
+   return self._props and
+          self._props.POWER_SUPPLY_STATUS and
+          self._props.POWER_SUPPLY_CHARGE_NOW and
+          self._props.POWER_SUPPLY_CHARGE_FULL and
           true
 end
 -- }}}
@@ -126,8 +126,8 @@ function bat:getChargeAsPerc ()
    -- Make sure that the properties table has been filled in and that
    --  we don't accidentally divide by 0
    if bat:isInitialized() and self._prop.POWER_SUPPLY_CHARGE_FULL ~= 0 then
-      retval = self._prop.POWER_SUPPLY_CHARGE_NOW /
-               self._prop.POWER_SUPPLY_CHARgE_FULL
+      retval = self._props.POWER_SUPPLY_CHARGE_NOW /
+               self._props.POWER_SUPPLY_CHARGE_FULL
    end
 
    -- finally check that the charge percentage isn't greater than 100
@@ -144,10 +144,12 @@ function bat:update ()
         self._props = {}
 
         for _,v in ipairs(lines(stdout)) do
+           print(v)
            gtable.merge(self._props, split(v,'='))
         end
 
         self._initialized = true
+        print("Battery Updating... " .. self.getChargeAsPerc())
         self:emit_signal("widget::updated")
    end)
 end
@@ -162,6 +164,8 @@ end
 --- bat:draw -- {{{
 -- 
 function bat:draw (w, cr, width, height)
+   print("Drawing battery...")
+   
    cr:save()   
 
    if self:getStatus() == BatteryState.Discharging then
@@ -204,14 +208,13 @@ end
 local function new(args)
    -- Create the widget and add methods to the metatable
    local obj             = wibox.widget.base.empty_widget()
-   print(bat == nil)
    gtable.crush(obj, bat, true)
    
    -- Initialize members
    local args       = args or {}
    obj._batname     = args.batname or "BAT"
    obj._batPropPath = args.batPropPath or "/sys/class/power_supply/" ..
-                                               obj._batname .. "/uevent"
+      obj._batname .. "/uevent"
    obj._timeout     = args.timeout or 15
    obj._timer       = capi.timer({timeout=obj._timeout})
    obj._props       = {}
@@ -229,9 +232,10 @@ local function new(args)
    -- Calculate text width
    obj._pl.text     = " 000%"
    obj._textWidth   = obj._pl:get_pixel_extents().width
+   print(obj._textWidth)
    
    -- Setup the update timer
-   obj._timer.connect_signal("timeout", function() obj:update() end)
+   obj._timer:connect_signal("timeout", function() obj:update() end)
    obj._timer:start()
 
    -- Initialize the properties
@@ -239,7 +243,8 @@ local function new(args)
    
    return obj
 end
+
 --- }}}
 
-return setmetatable(bat, { __call = function(_, ...) return new(...) end })
+return setmetatable(bat,{__call = function(_,...) new(...) end})
 -- }}}
