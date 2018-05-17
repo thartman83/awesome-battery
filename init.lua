@@ -29,6 +29,8 @@ local awful        = require('awful'       )
 local cairo        = require('lgi'         )
 local pango        = require('lgi'         ).Pango
 local pangocairo   = require('lgi'         ).PangoCairo
+local beautiful    = require('beautiful'   )
+local math         = require('math'        )
 local capi         = {timer = timer}
 -- }}}
 
@@ -48,14 +50,19 @@ end
 
 --- split -- {{{
 -- Split a string `str' by delimiter `delim'
-function split (str, delim)
-   if str == nil then return {} end
-
+function split(str, delim, noblanks)   
    local t = {}
-   local function helper(line) table.insert(t, part) return "" end
+   if str == nil then
+      return t
+   end
+   
+   local function helper(part) table.insert(t, part) return "" end
    helper((str:gsub("(.-)" .. delim, helper)))
-
-   return t   
+   if noblanks then
+      return remove_blanks(t)
+   else
+      return t
+   end
 end
 -- }}}
 
@@ -91,10 +98,10 @@ local bat = {}
 -- fields we are interested exist in the property table
 function bat:isInitialized ()
    return self._props and
-          self._props.POWER_SUPPLY_STATUS and
-          self._props.POWER_SUPPLY_CHARGE_NOW and
-          self._props.POWER_SUPPLY_CHARGE_FULL and
-          true
+      self._props.POWER_SUPPLY_STATUS and
+      self._props.POWER_SUPPLY_CHARGE_NOW and
+      self._props.POWER_SUPPLY_CHARGE_FULL and
+      true
 end
 -- }}}
 
@@ -104,7 +111,7 @@ end
 function bat:getStatus ()
    local retval = BatteryState.Unknown
 
-   if not bat:isInitialized() then
+   if not self:isInitialized() then
       return retval
    end
    
@@ -125,9 +132,9 @@ function bat:getChargeAsPerc ()
 
    -- Make sure that the properties table has been filled in and that
    --  we don't accidentally divide by 0
-   if bat:isInitialized() and self._prop.POWER_SUPPLY_CHARGE_FULL ~= 0 then
-      retval = self._props.POWER_SUPPLY_CHARGE_NOW /
-               self._props.POWER_SUPPLY_CHARGE_FULL
+   if self:isInitialized() and self._props.POWER_SUPPLY_CHARGE_FULL ~= 0 then
+      retval = math.floor(self._props.POWER_SUPPLY_CHARGE_NOW /
+                             self._props.POWER_SUPPLY_CHARGE_FULL * 100)
    end
 
    -- finally check that the charge percentage isn't greater than 100
@@ -136,21 +143,28 @@ function bat:getChargeAsPerc ()
 end
 -- }}}
 
+--- bat:parseBatProps -- {{{
+-- 
+function bat:parseBatProps (stdout, stderr, exitreason, exitcode)
+   self._props = {}
+
+   for _,v in ipairs(lines(stdout)) do
+      local parts = split(v, '=')
+      if table.getn(parts) == 2 then
+         self._props[parts[1]] = (tonumber(parts[2]) and tonumber(parts[2]) or parts[2])
+      end
+   end
+
+   self:emit_signal("widget::updated")
+end
+-- }}}
+
 --- bat:update -- {{{
 -- Update battery information
 function bat:update ()
    awful.spawn.easy_async("cat " .. self._batPropPath,
-     function (stdout, stderr, exitreason, exitcode)
-        self._props = {}
-
-        for _,v in ipairs(lines(stdout)) do
-           print(v)
-           gtable.merge(self._props, split(v,'='))
-        end
-
-        self._initialized = true
-        print("Battery Updating... " .. self.getChargeAsPerc())
-        self:emit_signal("widget::updated")
+                          function (stdout, stderr, exitreason, exitcode)
+                             self:parseBatProps(stdout, stderr, exitreason, exitcode)
    end)
 end
 -- }}}
@@ -164,18 +178,15 @@ end
 --- bat:draw -- {{{
 -- 
 function bat:draw (w, cr, width, height)
-   print("Drawing battery...")
-   
    cr:save()   
 
-   if self:getStatus() == BatteryState.Discharging then
-      bat:drawBattery(w, cr, width, height)
-   else
-      bat:drawPlug(w, cr, width, height)
-   end
+--   if self:getStatus() == BatteryState.Discharging then
+--      self:drawBattery(w, cr, width, height)
+--   else
+--      self:drawPlug(w, cr, width, height)
+--   end
 
-
-   bat:drawText(w, cr, width, height)
+   self:drawText(w, cr, width, height)
    
    cr:restore()
 end
@@ -184,9 +195,9 @@ end
 --- bat:drawText -- {{{
 -- 
 function bat:drawText (w, cr, width, height)
-   self.pl.text = " " .. self.getChargeAsPerc() .. "%"
-   cr:translate(width - self.textWidth, 0)
-   cr:show_layout(pl)
+   self._pl.text = " " .. self:getChargeAsPerc() .. "%"
+   cr:translate(width - self._textWidth, 0)
+   cr:show_layout(self._pl)
 end
 -- }}}
 
@@ -220,19 +231,20 @@ local function new(args)
    obj._props       = {}
    obj._pl          = pango.Layout.new(pangocairo.font_map_get_default():create_context())
    obj._initialized = false
+   
+   obj._font        = "proggytiny 8"
    obj._fontFamily  = args.fontFamily or "Verdana"
-   obj._fontWeight  = args.fontWeight or pango.Weight.ULTRABOLD
+   obj._fontWeight  = args.fontWeight or pango.Weight.LIGHT
 
    -- Setup the widget's font
-   local font       = pango.FontDescription()
-   font:set_family(obj._fontFamily)
-   font:set_weight(obj._fontWeight)
-   obj._pl:set_font_description(font)
-
+   --local font       = pango.FontDescription.from_string("proggytiny 8")
+   --font:set_weight(obj._fontWeight)
+   --obj._pl:set_font_description(font)
+   obj._pl:set_font_description(beautiful.get_font(beautiful and beautiful.font))
+   
    -- Calculate text width
    obj._pl.text     = " 000%"
    obj._textWidth   = obj._pl:get_pixel_extents().width
-   print(obj._textWidth)
    
    -- Setup the update timer
    obj._timer:connect_signal("timeout", function() obj:update() end)
@@ -246,5 +258,5 @@ end
 
 --- }}}
 
-return setmetatable(bat,{__call = function(_,...) new(...) end})
+return setmetatable(bat,{__call = function(_,...) return new(...) end})
 -- }}}
