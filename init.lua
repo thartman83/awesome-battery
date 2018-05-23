@@ -25,6 +25,7 @@ local setmetatable = setmetatable
 local wibox        = require('wibox'       )
 local timer        = require('gears.timer' )
 local gtable       = require('gears.table' )
+local color        = require('gears.color' )
 local awful        = require('awful'       )
 local cairo        = require('lgi'         )
 local pango        = require('lgi'         ).Pango
@@ -91,7 +92,6 @@ local BatteryState = { Discharging = 1, Charging = 2, Unknown = 3 }
 -- }}}
 
 local bat = {}
---bat.__index = bat
 
 --- bat:isInitialized -- {{{
 -- Check that the power supply properties table exists and that the
@@ -117,7 +117,7 @@ function bat:getStatus ()
    
    if self._props.POWER_SUPPLY_STATUS == "Discharging" then
       retval = BatteryState.Discharging
-   elseif self._prop.POWER_SUPPLY_STATUS == "Charging" then
+   elseif self._props.POWER_SUPPLY_STATUS == "Charging" then
       retval = BatteryState.Charging      
    end
 
@@ -171,6 +171,7 @@ end
 
 --- bat:fit -- {{{
 function bat:fit(ctx, width, height)
+   print("In fit, width = " .. width .. " height = " .. height)
    return (width > (height * 2) and (height * 2) or width) + self._textWidth, height
 end
 -- }}}
@@ -179,15 +180,15 @@ end
 -- 
 function bat:draw (w, cr, width, height)
    cr:save()   
-
---   if self:getStatus() == BatteryState.Discharging then
---      self:drawBattery(w, cr, width, height)
---   else
---      self:drawPlug(w, cr, width, height)
---   end
+   
+   if self:getStatus() == BatteryState.Discharging then
+      self:drawBattery(w, cr, width, height)
+   else
+      self:drawPlug(w, cr, width, height)
+   end
 
    self:drawText(w, cr, width, height)
-   
+
    cr:restore()
 end
 -- }}}
@@ -195,8 +196,10 @@ end
 --- bat:drawText -- {{{
 -- 
 function bat:drawText (w, cr, width, height)
-   self._pl.text = " " .. self:getChargeAsPerc() .. "%"
-   cr:translate(width - self._textWidth, 0)
+   local perc = self:getChargeAsPerc()
+   self._pl.text = (perc == 100 and " " or perc >= 10 and "  " or "   ") ..
+      self:getChargeAsPerc() .. "%"
+   cr:translate(width - (self._textWidth + 2), height/4)
    cr:show_layout(self._pl)
 end
 -- }}}
@@ -204,14 +207,35 @@ end
 --- bat:drawBattery -- {{{
 -- 
 function bat:drawBattery (w, cr, width, height)
+   cr:set_source(color(self._color or beautiful.fg_normal))
+   cr:set_antialias(0)
 
+   local width = width - (self._textWidth or 0)
+
+   local ratio = height / 7
+
+   cr:set_line_width(ratio)
+   cr:rectangle(0,0,width-1.5*ratio, height)
+   cr:stroke()
+
+   cr:rectangle(width-1.5*ratio, height/4, 1.5*ratio, height/2)
+   
+   cr:rectangle(ratio,ratio,(width-3*ratio)*(self:getChargeAsPerc()/100), height-2*ratio)
+   cr:fill()
 end
 -- }}}
 
 --- bat:drawPlug -- {{{
 -- 
 function bat:drawPlug (w, cr, width, height)
+   cr:set_source(color(self._color or beautiful.fg_normal))
+   cr:arc(height/2, height/2, height/3, 0, 2*math.pi)
+   cr:rectangle(height/2,height/6,5,2*(height/3))
+   cr:rectangle(0, height/2-1, height/6,2)
+   cr:rectangle(height/2+5, height * .25, 3, 2)
+   cr:rectangle(height/2+5, height * .66, 3, 2)
 
+   cr:fill()
 end
 -- }}}
 
@@ -243,7 +267,7 @@ local function new(args)
    obj._pl:set_font_description(beautiful.get_font(beautiful and beautiful.font))
    
    -- Calculate text width
-   obj._pl.text     = " 000%"
+   obj._pl.text     = " 000% "
    obj._textWidth   = obj._pl:get_pixel_extents().width
    
    -- Setup the update timer
