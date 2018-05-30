@@ -228,14 +228,28 @@ end
 --- bat:drawPlug -- {{{
 -- 
 function bat:drawPlug (w, cr, width, height)
+   
    cr:set_source(color(self._color or beautiful.fg_normal))
-   cr:arc(height/2, height/2, height/3, 0, 2*math.pi)
-   cr:rectangle(height/2,height/6,5,2*(height/3))
-   cr:rectangle(0, height/2-1, height/6,2)
-   cr:rectangle(height/2+5, height * .25, 3, 2)
-   cr:rectangle(height/2+5, height * .66, 3, 2)
 
-   cr:fill()
+   cr.line_width = 1
+   cr:move_to(width * .2, height * .8)
+   cr:line_to(width * .2, height * .4)
+   cr:curve_to(width * .2, height * .3, width * .25, height * .3, width * .25, height * .4)
+   cr:line_to(width * .25, height * .7)
+   cr:curve_to(width * .25, height * .8, width * .3, height * .8, width * .3, height * .7)
+   cr:line_to(width * .3, height * .4)
+   cr:curve_to(width * .3, height * .3, width * .35, height * .3, width * .35, height * .4)
+   cr:line_to(width * .35, height * .5)
+   cr:curve_to(width * .35, height * .6, width * .35, height * .6, width * .4, height * .6)
+
+   
+   -- cr:arc(height/2, height/2, height/3, 0, 2*math.pi)
+   -- cr:rectangle(height/2,height/6,5,2*(height/3))
+   -- cr:rectangle(0, height/2-1, height/6,2)
+   -- cr:rectangle(height/2+5, height * .25, 3, 2)
+   -- cr:rectangle(height/2+5, height * .66, 3, 2)
+
+   cr:stroke()
 end
 -- }}}
 
