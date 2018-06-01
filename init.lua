@@ -170,9 +170,9 @@ end
 -- }}}
 
 --- bat:fit -- {{{
-function bat:fit(ctx, width, height)
-   print("In fit, width = " .. width .. " height = " .. height)
-   return (width > (height * 2) and (height * 2) or width) + self._textWidth, height
+function bat:fit(ctx, width, height)   
+   -- return (width > (height * 2) and (height * 2) or width) + self._textWidth, height
+   return self._textWidth * 2, height
 end
 -- }}}
 
@@ -197,9 +197,12 @@ end
 -- 
 function bat:drawText (w, cr, width, height)
    local perc = self:getChargeAsPerc()
+   cr:set_source(color(self._color or beautiful.fg_normal))
    self._pl.text = (perc == 100 and " " or perc >= 10 and "  " or "   ") ..
       self:getChargeAsPerc() .. "%"
-   cr:translate(width - (self._textWidth + 2), height/4)
+
+   local pad = 3
+   cr:translate(width - (self._textWidth + pad), height/4)
    cr:show_layout(self._pl)
 end
 -- }}}
@@ -231,25 +234,30 @@ function bat:drawPlug (w, cr, width, height)
    
    cr:set_source(color(self._color or beautiful.fg_normal))
 
+   -- Draw cable
+   
    cr.line_width = 1
-   cr:move_to(width * .2, height * .8)
+   cr:move_to(width * .1, height * .8)
+   cr:line_to(width * .1, height * .4)
+   cr:curve_to(width * .1, height * .3, width * .15, height * .3, width * .15, height * .4)
+   cr:line_to(width * .15, height * .7)
+   cr:curve_to(width * .15, height * .8, width * .2, height * .8, width * .2, height * .7)
    cr:line_to(width * .2, height * .4)
    cr:curve_to(width * .2, height * .3, width * .25, height * .3, width * .25, height * .4)
-   cr:line_to(width * .25, height * .7)
-   cr:curve_to(width * .25, height * .8, width * .3, height * .8, width * .3, height * .7)
-   cr:line_to(width * .3, height * .4)
-   cr:curve_to(width * .3, height * .3, width * .35, height * .3, width * .35, height * .4)
-   cr:line_to(width * .35, height * .5)
-   cr:curve_to(width * .35, height * .6, width * .35, height * .6, width * .4, height * .6)
+   cr:line_to(width * .25, height * .5)
+   cr:curve_to(width * .25, height * .6, width * .25, height * .6, width * .3, height * .6)
 
+   -- now the plug
+
+   cr:move_to(width * .4, height * .4)
+   cr:curve_to(width * .25, height * .4, width * .25, height * .8, width * .4, height * .8)
+   cr:line_to(width * .4, height * .4)
+   cr:move_to(width * .4, height * .525)
+   cr:line_to(width * .475, height * .525)
+   cr:move_to(width * .4, height * .675)
+   cr:line_to(width * .475, height * .675)
    
-   -- cr:arc(height/2, height/2, height/3, 0, 2*math.pi)
-   -- cr:rectangle(height/2,height/6,5,2*(height/3))
-   -- cr:rectangle(0, height/2-1, height/6,2)
-   -- cr:rectangle(height/2+5, height * .25, 3, 2)
-   -- cr:rectangle(height/2+5, height * .66, 3, 2)
-
-   cr:stroke()
+   cr:stroke()   
 end
 -- }}}
 
