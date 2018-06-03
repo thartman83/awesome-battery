@@ -202,7 +202,7 @@ function bat:drawText (w, cr, width, height)
       self:getChargeAsPerc() .. "%"
 
    local pad = 3
-   cr:translate(width - (self._textWidth + pad), height/4)
+   cr:translate(width - (self._textWidth + pad), (height/4))
    cr:show_layout(self._pl)
 end
 -- }}}
@@ -211,19 +211,24 @@ end
 -- 
 function bat:drawBattery (w, cr, width, height)
    cr:set_source(color(self._color or beautiful.fg_normal))
-   cr:set_antialias(0)
 
-   local width = width - (self._textWidth or 0)
+   cr.line_width = 1
 
-   local ratio = height / 7
-
-   cr:set_line_width(ratio)
-   cr:rectangle(0,0,width-1.5*ratio, height)
+   local charge_pad = 2
+   local bat_width  = (width * .475) - (width * .1) - charge_pad
+   local bat_height = (height * .3) - (height * .8)
+   
+   cr:move_to(width * .1, height * .8)
+   cr:rectangle(width * .1, height * .8, bat_width, bat_height)
    cr:stroke()
 
-   cr:rectangle(width-1.5*ratio, height/4, 1.5*ratio, height/2)
-   
-   cr:rectangle(ratio,ratio,(width-3*ratio)*(self:getChargeAsPerc()/100), height-2*ratio)
+   cr:rectangle(width * .1 + charge_pad, (height * .8) - charge_pad,
+                (bat_width * (self:getChargeAsPerc()  / 100) - charge_pad),
+                (bat_height + (charge_pad * 2)))   
+   cr:fill()
+
+   cr:rectangle((width * .1) + bat_width, (height * .8) - charge_pad, charge_pad + 1,
+                (bat_height + (charge_pad * 2)))
    cr:fill()
 end
 -- }}}
