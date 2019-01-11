@@ -146,8 +146,6 @@ end
 -- 
 ----------------------------------------------------------------------
 function bat:updateState (state)
-   print("Updating State - " .. state)
-   
    if self._state ~= state then
       self._state = state
       self:emit_signal("widget::layout_changed")
@@ -190,27 +188,64 @@ end
 -- 
 function bat:drawBattery (w, cr, width, height)
    cr:set_source(color(self._color or beautiful.fg_urgent))
+   cr.line_width = 1
+
+   self:drawEmptyBattery(w, cr, width, height)
+   self:fillBattery(w, cr, width, height)
+end
+-- }}}
+
+--- bat:drawEmptyBattery -- {{{
+----------------------------------------------------------------------
+-- 
+----------------------------------------------------------------------
+function bat:drawEmptyBattery (w, cr, width, height)
+   cr:set_source(color(self._color or beautiful.fg_urgent))
 
    cr.line_width = 1
 
-   local charge_pad = 2
-   local bat_width  = (width * .475) - (width * .1) - charge_pad
-   local bat_height = (height * .3) - (height * .8)
+   local bat_height = height * .5
+   local bat_width = bat_height * 2
+   local bat_x = width * .1
+   local bat_y = (height - bat_height) / 2 + height * .05
    
-   cr:move_to(width * .1, height * .8)
-   cr:rectangle(width * .1, height * .8, bat_width, bat_height)
+   -- battery body
+   cr:rectangle(bat_x, bat_y, bat_width, bat_height)
    cr:stroke()
 
-   cr:rectangle(width * .1 + charge_pad, (height * .8) - charge_pad,
-                (bat_width * (self:getChargeAsPerc()  / 100) - charge_pad),
-                (bat_height + (charge_pad * 2)))   
-   cr:fill()
-
-   cr:rectangle((width * .1) + bat_width, (height * .8) - charge_pad, charge_pad + 1,
-                (bat_height + (charge_pad * 2)))
+   -- terminal
+   local term_width = bat_width * .1
+   local term_height = bat_height * .5
+   local term_x = bat_x + bat_width
+   local term_y = bat_y + ((bat_height - term_height) / 2)
+   
+   cr:rectangle(term_x, term_y, term_width, term_height)
    cr:fill()
 end
 -- }}}
+
+--- bat:fillBattery -- {{{
+----------------------------------------------------------------------
+-- 
+----------------------------------------------------------------------
+function bat:fillBattery (w, cr, width, height)
+   cr:set_source(color(self._color or beautiful.fg_urgent))
+   cr.line_width = 1
+
+   local bat_height = height * .5
+   local bat_width = bat_height * 2
+   local bat_x = width * .1
+   local bat_y = (height - bat_height) / 2 + height * .05
+   local fill_x = bat_x + 1
+   local fill_y = bat_y + 1
+   local fill_width = (bat_width - 2) * (self:getChargeAsPerc() / 100)
+   local fill_height = bat_height - 2
+   
+   cr:rectangle(fill_x, fill_y, fill_width, fill_height)
+   cr:fill()
+end
+-- }}}
+   
 
 --- bat:drawPlug -- {{{
 -- 
@@ -250,30 +285,17 @@ end
 -- 
 ----------------------------------------------------------------------
 function bat:drawNoBat (w, cr, width, height)
-   -- Draw a battery
-   cr:set_source(color(self._color or beautiful.fg_normal))
-
-   cr.line_width = 1
-
-   local margin = width * .2
-   local bat_width = width - (margin * 2)
-   local bat_height = height - (margin * 2)
+   self:drawEmptyBattery(w, cr, width, height)
    
-   cr:rectangle(margin, margin, bat_width, bat_height)
-   cr:stroke()
+   local bat_height = height * .5
+   local bat_width = bat_height * 2
+   local bat_x = width * .1
+   local bat_y = (height - bat_height) / 2 + height * .05
 
-   -- Battery Terminal
-   local term_width = bat_width * .2
-   local term_height = bat_height * .8
-   cr:rectangle(bat_width + margin, margin + ((bat_height - term_height) / 2),
-                term_width, term_height)
-   cr:fill()
-
-   -- Draw the X through the battery
-   cr:move_to(margin, margin)
-   cr:line_to(bat_width + margin, bat_height + margin)
-   cr:move_to(margin, bat_height + margin)
-   cr:line_to(bat_width + margin, margin)
+   cr:move_to(bat_x, bat_y)
+   cr:line_to(bat_x + bat_width, bat_y + bat_height)
+   cr:move_to(bat_x, bat_y + bat_height)
+   cr:line_to(bat_x + bat_width, bat_y)
    
    cr:stroke()
 end
@@ -319,6 +341,9 @@ local function new(args)
    -- Calculate text width
    obj._pl.text     = " 000% "
    obj._textWidth   = obj._pl:get_pixel_extents().width
+   obj._textHeight  = obj._pl:get_pixel_extents().height
+
+   print(obj._textHeight)
    
    -- Setup the update timer
    obj._timer:connect_signal("timeout", function() obj:update() end)
