@@ -122,8 +122,7 @@ function bat:parseBatProps (stdout, stderr, exitreason, exitcode)
       end
    end
 
-   self._state = BatteryState[self._props.POWER_SUPPLY_STATUS];
-
+   self:updateState(BatteryState[self._props.POWER_SUPPLY_STATUS]);
    self:emit_signal("widget::updated")
 end
 -- }}}
@@ -132,12 +131,26 @@ end
 -- Update battery information
 function bat:update ()
    if not fs.file_readable(self._batPropPath) then
-      self._state = BatteryState.Missing
+      self:updateState(BatteryState.Missing)
    else
       awful.spawn.easy_async("cat " .. self._batPropPath,
                              function (stdout, stderr, exitreason, exitcode)
                                 self:parseBatProps(stdout, stderr, exitreason, exitcode)
       end)
+   end
+end
+-- }}}
+
+--- bat:updateState -- {{{
+----------------------------------------------------------------------
+-- 
+----------------------------------------------------------------------
+function bat:updateState (state)
+   print("Updating State - " .. state)
+   
+   if self._state ~= state then
+      self._state = state
+      self:emit_signal("widget::layout_changed")
    end
 end
 -- }}}
