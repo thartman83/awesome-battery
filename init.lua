@@ -187,7 +187,6 @@ end
 --- bat:drawBattery -- {{{
 -- 
 function bat:drawBattery (w, cr, width, height)
-<<<<<<< HEAD
    cr:set_source(color(self._color or beautiful.fg_urgent))
    cr.line_width = 1
 
@@ -203,9 +202,6 @@ end
 function bat:drawEmptyBattery (w, cr, width, height)
    cr:set_source(color(self._color or beautiful.fg_urgent))
 
-=======
-   cr:set_source(color(self._color or beautiful.fg_normal))
->>>>>>> dev
    cr.line_width = 1
 
    local bat_height = height * .5
