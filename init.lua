@@ -147,10 +147,9 @@ end
 -- 
 function bat:parseBatProps (stdout, stderr, exitreason, exitcode)
    self._props = {}
-
    for _,v in ipairs(lines(stdout)) do
       local parts = split(v, '=')
-      if table.getn(parts) == 2 then
+      if #parts == 2 then
          self._props[parts[1]] = (tonumber(parts[2]) and tonumber(parts[2]) or parts[2])
       end
    end
@@ -201,8 +200,9 @@ function bat:drawText (w, cr, width, height)
    self._pl.text = (perc == 100 and " " or perc >= 10 and "  " or "   ") ..
       self:getChargeAsPerc() .. "%"
 
-   local pad = 3
+   local pad = 5
    cr:translate(width - (self._textWidth + pad), (height/4))
+   -- cr:move(width - (self._textWidth + pad), (height / 4))
    cr:show_layout(self._pl)
 end
 -- }}}
@@ -211,7 +211,6 @@ end
 -- 
 function bat:drawBattery (w, cr, width, height)
    cr:set_source(color(self._color or beautiful.fg_normal))
-
    cr.line_width = 1
 
    local charge_pad = 2
@@ -275,26 +274,23 @@ local function new(args)
    -- Initialize members
    local args       = args or {}
    obj._batname     = args.batname or "BAT"
-   obj._batPropPath = args.batPropPath or "/sys/class/power_supply/" ..
-      obj._batname .. "/uevent"
+   obj._batPropPath = args.batPropPath or "/sys/class/power_supply/" .. obj._batname .. "/uevent"
    obj._timeout     = args.timeout or 15
    obj._timer       = capi.timer({timeout=obj._timeout})
    obj._props       = {}
    obj._pl          = pango.Layout.new(pangocairo.font_map_get_default():create_context())
    obj._initialized = false
    
-   obj._font        = "proggytiny 8"
-   obj._fontFamily  = args.fontFamily or "Verdana"
-   obj._fontWeight  = args.fontWeight or pango.Weight.LIGHT
-
    -- Setup the widget's font
-   --local font       = pango.FontDescription.from_string("proggytiny 8")
+--   local font       = pango.FontDescription.from_string(beautiful.get_font())
+   local font       = beautiful.get_font()
    --font:set_weight(obj._fontWeight)
-   --obj._pl:set_font_description(font)
+   obj._pl:set_font_description(font)
    obj._pl:set_font_description(beautiful.get_font(beautiful and beautiful.font))
    
    -- Calculate text width
    obj._pl.text     = " 000% "
+   obj._textHeight  = obj._pl:get_pixel_extents().height
    obj._textWidth   = obj._pl:get_pixel_extents().width
    
    -- Setup the update timer
