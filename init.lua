@@ -170,7 +170,6 @@ end
 
 --- bat:fit -- {{{
 function bat:fit(ctx, width, height)   
-   -- return (width > (height * 2) and (height * 2) or width) + self._textWidth, height
    return self._textWidth * 2, height
 end
 -- }}}
