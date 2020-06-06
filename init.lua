@@ -153,8 +153,8 @@ end
 -- }}}
 
 --- bat:fit -- {{{
-function bat:fit(ctx, width, height)
-   return self._fitAction[self._state](ctx, width, height)
+function bat:fit(ctx, width, height)   
+   return self._textWidth * 2, height
 end
 -- }}}
 
