@@ -1,0 +1,25 @@
+package = "awesome-battery"
+version = "0.1-1"
+source = {
+  url = "git://github.com/thartman83/awesome-battery",
+  tag = "v0.1"
+}
+
+description = {
+  summary = "A battery widget for the Awesome Window Manager",
+  detailed = [[
+  Show battery information in the awesome window manager
+  ]],
+  homepage = "git://github.com/thartman83/awesome-pass",
+  license = "GPL v2"
+}
+
+dependencies = {
+  "lua >= 5.1"
+}
+
+supported_platforms = { "linux" }
+build = {
+  type = "builtin",
+  modules = { awesome_battery = "init.lua" }
+}
