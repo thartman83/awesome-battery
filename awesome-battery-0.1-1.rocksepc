@@ -10,7 +10,7 @@ description = {
   detailed = [[
   Show battery information in the awesome window manager
   ]],
-  homepage = "git://github.com/thartman83/awesome-pass",
+  homepage = "git://github.com/thartman83/awesome-battery",
   license = "GPL v2"
 }
 
