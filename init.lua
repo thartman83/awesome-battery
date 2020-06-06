@@ -22,17 +22,16 @@
 
 --- Libraries -- {{{
 local setmetatable = setmetatable
-local wibox        = require('wibox'            )
-local timer        = require('gears.timer'      )
-local gtable       = require('gears.table'      )
-local color        = require('gears.color'      )
-local fs           = require('gears.filesystem' )
-local awful        = require('awful'            )
-local cairo        = require('lgi'              )
-local pango        = require('lgi'              ).Pango
-local pangocairo   = require('lgi'              ).PangoCairo
-local beautiful    = require('beautiful'        )
-local math         = require('math'             )
+local wibox        = require('wibox'       )
+local timer        = require('gears.timer' )
+local gtable       = require('gears.table' )
+local color        = require('gears.color' )
+local awful        = require('awful'       )
+local cairo        = require('lgi'         )
+local pango        = require('lgi'         ).Pango
+local pangocairo   = require('lgi'         ).PangoCairo
+local beautiful    = require('beautiful'   )
+local math         = require('math'        )
 local capi         = {timer = timer}
 -- }}}
 
@@ -70,8 +69,26 @@ end
 
 -- }}}
 
+--- Table Helper Functions -- {{{
+
+--- map -- {{{
+-- Apply function `fn' to all members of table `t' and return as a new table
+function map (fn,t)
+   local retval = {}
+
+   for k,v in pairs(t) do
+      retval[k] = fn(v)
+   end
+
+   return retval
+end
+-- }}}
+
+
+-- }}}
+
 --- Battery Status Enum -- {{{
-local BatteryState = { Discharging = 1, Charging = 2, Missing = 3, Unknown = 4 }
+local BatteryState = { Discharging = 1, Charging = 2, Unknown = 3 }
 -- }}}
 
 local bat = {}
@@ -88,14 +105,30 @@ function bat:isInitialized ()
 end
 -- }}}
 
+--- bat:getStatus -- {{{
+-- Return the current status of the battery as a value from the
+-- BatteryState enum table.
+function bat:getStatus ()
+   local retval = BatteryState.Unknown
+
+   if not self:isInitialized() then
+      return retval
+   end
+   
+   if self._props.POWER_SUPPLY_STATUS == "Discharging" then
+      retval = BatteryState.Discharging
+   elseif self._props.POWER_SUPPLY_STATUS == "Charging" then
+      retval = BatteryState.Charging      
+   end
+
+   return retval
+end
+-- }}}
+
 --- bat:getChargeAsPerc -- {{{
 -- 
 function bat:getChargeAsPerc ()
    local retval = 0
-
-   if self._state == BatteryState.Unknown then
-      return 0
-   end
 
    -- Make sure that the properties table has been filled in and that
    --  we don't accidentally divide by 0
@@ -121,7 +154,6 @@ function bat:parseBatProps (stdout, stderr, exitreason, exitcode)
       end
    end
 
-   self:updateState(BatteryState[self._props.POWER_SUPPLY_STATUS]);
    self:emit_signal("widget::updated")
 end
 -- }}}
@@ -129,26 +161,10 @@ end
 --- bat:update -- {{{
 -- Update battery information
 function bat:update ()
-   if not fs.file_readable(self._batPropPath) then
-      self:updateState(BatteryState.Missing)
-   else
-      awful.spawn.easy_async("cat " .. self._batPropPath,
-                             function (stdout, stderr, exitreason, exitcode)
-                                self:parseBatProps(stdout, stderr, exitreason, exitcode)
-      end)
-   end
-end
--- }}}
-
---- bat:updateState -- {{{
-----------------------------------------------------------------------
--- 
-----------------------------------------------------------------------
-function bat:updateState (state)
-   if self._state ~= state then
-      self._state = state
-      self:emit_signal("widget::layout_changed")
-   end
+   awful.spawn.easy_async("cat " .. self._batPropPath,
+                          function (stdout, stderr, exitreason, exitcode)
+                             self:parseBatProps(stdout, stderr, exitreason, exitcode)
+   end)
 end
 -- }}}
 
@@ -161,9 +177,15 @@ end
 --- bat:draw -- {{{
 -- 
 function bat:draw (w, cr, width, height)
-   cr:save()
+   cr:save()   
+   
+   if self:getStatus() == BatteryState.Discharging then
+      self:drawBattery(w, cr, width, height)
+   else
+      self:drawPlug(w, cr, width, height)
+   end
 
-   self._drawAction[self._state](w, cr, width, height)
+   self:drawText(w, cr, width, height)
 
    cr:restore()
 end
@@ -187,65 +209,27 @@ end
 --- bat:drawBattery -- {{{
 -- 
 function bat:drawBattery (w, cr, width, height)
-   cr:set_source(color(self._color or beautiful.fg_urgent))
+   cr:set_source(color(self._color or beautiful.fg_normal))
    cr.line_width = 1
 
-   self:drawEmptyBattery(w, cr, width, height)
-   self:fillBattery(w, cr, width, height)
-end
--- }}}
-
---- bat:drawEmptyBattery -- {{{
-----------------------------------------------------------------------
--- 
-----------------------------------------------------------------------
-function bat:drawEmptyBattery (w, cr, width, height)
-   cr:set_source(color(self._color or beautiful.fg_urgent))
-
-   cr.line_width = 1
-
-   local bat_height = height * .5
-   local bat_width = bat_height * 2
-   local bat_x = width * .1
-   local bat_y = (height - bat_height) / 2 + height * .05
+   local charge_pad = 2
+   local bat_width  = (width * .475) - (width * .1) - charge_pad
+   local bat_height = (height * .3) - (height * .8)
    
-   -- battery body
-   cr:rectangle(bat_x, bat_y, bat_width, bat_height)
+   cr:move_to(width * .1, height * .8)
+   cr:rectangle(width * .1, height * .8, bat_width, bat_height)
    cr:stroke()
 
-   -- terminal
-   local term_width = bat_width * .1
-   local term_height = bat_height * .5
-   local term_x = bat_x + bat_width
-   local term_y = bat_y + ((bat_height - term_height) / 2)
-   
-   cr:rectangle(term_x, term_y, term_width, term_height)
+   cr:rectangle(width * .1 + charge_pad, (height * .8) - charge_pad,
+                (bat_width * (self:getChargeAsPerc()  / 100) - charge_pad),
+                (bat_height + (charge_pad * 2)))   
+   cr:fill()
+
+   cr:rectangle((width * .1) + bat_width, (height * .8) - charge_pad, charge_pad + 1,
+                (bat_height + (charge_pad * 2)))
    cr:fill()
 end
 -- }}}
-
---- bat:fillBattery -- {{{
-----------------------------------------------------------------------
--- 
-----------------------------------------------------------------------
-function bat:fillBattery (w, cr, width, height)
-   cr:set_source(color(self._color or beautiful.fg_urgent))
-   cr.line_width = 1
-
-   local bat_height = height * .5
-   local bat_width = bat_height * 2
-   local bat_x = width * .1
-   local bat_y = (height - bat_height) / 2 + height * .05
-   local fill_x = bat_x + 1
-   local fill_y = bat_y + 1
-   local fill_width = (bat_width - 2) * (self:getChargeAsPerc() / 100)
-   local fill_height = bat_height - 2
-   
-   cr:rectangle(fill_x, fill_y, fill_width, fill_height)
-   cr:fill()
-end
--- }}}
-   
 
 --- bat:drawPlug -- {{{
 -- 
@@ -280,27 +264,6 @@ function bat:drawPlug (w, cr, width, height)
 end
 -- }}}
 
---- bat:drawNoBat -- {{{
-----------------------------------------------------------------------
--- 
-----------------------------------------------------------------------
-function bat:drawNoBat (w, cr, width, height)
-   self:drawEmptyBattery(w, cr, width, height)
-   
-   local bat_height = height * .5
-   local bat_width = bat_height * 2
-   local bat_x = width * .1
-   local bat_y = (height - bat_height) / 2 + height * .05
-
-   cr:move_to(bat_x, bat_y)
-   cr:line_to(bat_x + bat_width, bat_y + bat_height)
-   cr:move_to(bat_x, bat_y + bat_height)
-   cr:line_to(bat_x + bat_width, bat_y)
-   
-   cr:stroke()
-end
--- }}}
-
 --- Constructor -- {{{
 local function new(args)
    -- Create the widget and add methods to the metatable
@@ -311,7 +274,6 @@ local function new(args)
    local args       = args or {}
    obj._batname     = args.batname or "BAT"
    obj._batPropPath = args.batPropPath or "/sys/class/power_supply/" .. obj._batname .. "/uevent"
-
    obj._timeout     = args.timeout or 15
    obj._timer       = capi.timer({timeout=obj._timeout})
    obj._props       = {}
@@ -319,6 +281,7 @@ local function new(args)
    obj._initialized = false
    
    -- Setup the widget's font
+--   local font       = pango.FontDescription.from_string(beautiful.get_font())
    local font       = beautiful.get_font()
    --font:set_weight(obj._fontWeight)
    obj._pl:set_font_description(font)
@@ -328,9 +291,6 @@ local function new(args)
    obj._pl.text     = " 000% "
    obj._textHeight  = obj._pl:get_pixel_extents().height
    obj._textWidth   = obj._pl:get_pixel_extents().width
-   obj._textHeight  = obj._pl:get_pixel_extents().height
-
-   print(obj._textHeight)
    
    -- Setup the update timer
    obj._timer:connect_signal("timeout", function() obj:update() end)
@@ -346,3 +306,4 @@ end
 
 return setmetatable(bat,{__call = function(_,...) return new(...) end})
 -- }}}
+
